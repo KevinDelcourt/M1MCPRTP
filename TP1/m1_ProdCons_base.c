@@ -16,16 +16,13 @@
 #include <unistd.h>
 #include <pthread.h>
 
-#define NB_FOIS_PROD 2  //10
-#define NB_FOIS_CONSO 2 //10
-
 #define NB_PROD_MAX 20
 #define NB_CONSO_MAX 20
 
 #define NB_CASES_MAX 20
 
-#define NB_DEPOT_MAX 20
-#define NB_RETRAIT_MAX 20
+#define NB_DEPOT_MAX 10
+#define NB_RETRAIT_MAX 10
 
 typedef struct
 {
@@ -45,6 +42,9 @@ typedef struct
 RessourceCritique resCritiques; // Modifications donc conflits possibles
 int nbCases;                    // Taille effective du buffer,
                                 // Pas de modif donc pas de conflit
+int nbDepots;
+int nbRetraits;
+
 typedef struct
 {                // Parametre des threads
     int rang;    // - rang de creation
@@ -60,7 +60,7 @@ void thdErreur(int codeErr, char *msgErr, int valeurErr)
 {
     int *retour = malloc(sizeof(int));
     *retour = valeurErr;
-    fprintf(stderr, "%s: %d soit %s \n", msgErr, codeErr, strerror(codeErr));
+    fprintf(stderr, "\033[1;31m ERREUR %s \033[0m %d - %s \n", msgErr, codeErr, strerror(codeErr));
     pthread_exit(retour);
 }
 
@@ -72,7 +72,7 @@ void initialiserVarPartagees(void)
     /* Le buffer, les indices et le nombre de cases pleines */
     resCritiques.iDepot = 0;
     resCritiques.iRetrait = 0;
-    for (i = 0; i < nbCases; i++)
+    for (int i = 0; i < nbCases; i++)
     {
         strcpy(resCritiques.buffer[i].info, "Message vide");
         resCritiques.buffer[i].type = 0;
@@ -151,8 +151,7 @@ void *producteur(void *arg)
 
     srand(pthread_self());
 
-    //** Q1 : NB_FOIS_PROD a remplacer par le nouveau parametre du main
-    for (i = 0; i < NB_FOIS_PROD; i++)
+    for (i = 0; i < nbDepots; i++)
     {
         sprintf(leMessage.info, "%s %d %s %d", "bonjour num ", i, "de prod ", param.rang);
         leMessage.type = param.typeMsg;
@@ -179,8 +178,7 @@ void *consommateur(void *arg)
 
     srand(pthread_self());
 
-    //** Q1 : NB_FOIS_CONSO a remplacer par le nouveau parametre du main
-    for (i = 0; i < NB_FOIS_CONSO; i++)
+    for (i = 0; i < nbRetraits; i++)
     {
 
 #ifdef TRACE_SOUHAIT
@@ -216,13 +214,17 @@ int main(int argc, char *argv[])
     }
 
     nbProd = minArg(argv[1], NB_PROD_MAX);
-
     nbConso = minArg(argv[2], NB_CONSO_MAX);
-
+    nbThds = nbProd + nbConso;
     nbCases = minArg(argv[3], NB_CASES_MAX);
+    nbDepots = minArg(argv[4], NB_DEPOT_MAX);
+    nbRetraits = minArg(argv[5], NB_RETRAIT_MAX);
 
-    printf("Paramètres: \n - %d producteurs \n - %d consommateurs \n - %d cases dans le buffer \n",
-           nbProd, nbConso, nbCases);
+#ifdef TRACE_THD
+    printf("\033[0;32m Paramètres: \033[0m\n - %d producteurs \n - %d consommateurs \n - %d cases dans le buffer \n - %d depots pour chaque producteur \n - %d retraits pour chaque consommateur\n",
+           nbProd, nbConso, nbCases, nbDepots, nbRetraits);
+#endif
+
     // Q1 : ajouter 2 parametres :
     // -  nombre de depots a faire par un producteur
     // -  nombre de retraits a faire par un consommateur

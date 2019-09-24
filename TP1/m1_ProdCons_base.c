@@ -36,7 +36,8 @@ typedef struct
     TypeMessage buffer[NB_CASES_MAX]; // Buffer
     int iDepot;                       // Indice prochain depot
     int iRetrait;                     // Indice prochain retrait
-} RessourceCritique;                  // A completer eventuellement pour la synchro
+    int nbVide;
+} RessourceCritique; // A completer eventuellement pour la synchro
 
 // Variables partagees entre tous
 RessourceCritique resCritiques; // Modifications donc conflits possibles
@@ -76,6 +77,7 @@ void initialiserVarPartagees(void)
     /* Le buffer, les indices et le nombre de cases pleines */
     resCritiques.iDepot = 0;
     resCritiques.iRetrait = 0;
+    resCritiques.nbVide = nbCases;
     for (int i = 0; i < nbCases; i++)
     {
         strcpy(resCritiques.buffer[i].info, "Message vide");
@@ -130,9 +132,15 @@ void retrait(TypeMessage *leMessage)
  * */
 void deposer(TypeMessage leMessage, int rangProd)
 {
+    if (resCritiques.nbVide == 0)
+        pthread_cond_wait(&condDepot, &exclusionMutuelleMoniteur);
+
     depot(&leMessage);
+    resCritiques.nbVide--;
     printf("\tProd %d : Message a ete depose = [T%d] %s (de %d)\n",
            rangProd, leMessage.type, leMessage.info, leMessage.rangProd);
+
+    pthread_cond_signal(&condRetrait);
 }
 
 /*--------------------------------------------------
@@ -141,9 +149,15 @@ void deposer(TypeMessage leMessage, int rangProd)
  * */
 void retirer(TypeMessage *unMessage, int rangConso)
 {
+    if (resCritiques.nbVide == nbCases)
+        pthread_cond_wait(&condDepot, &exclusionMutuelleMoniteur);
+
     retrait(unMessage);
+    resCritiques.nbVide++;
+
     printf("\t\tConso %d : Message a ete lu = [T%d] %s (de %d)\n",
            rangConso, unMessage->type, unMessage->info, unMessage->rangProd);
+    pthread_cond_signal(&condDepot);
 }
 
 /*--------------------------------------------------*/

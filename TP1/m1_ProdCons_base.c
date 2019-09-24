@@ -51,6 +51,10 @@ typedef struct
     int typeMsg; // - type de message a deposer/retirer (si besoin)
 } Parametres;
 
+pthread_cond_t condDepot = PTHREAD_COND_INITIALIZER;
+pthread_cond_t condRetrait = PTHREAD_COND_INITIALIZER;
+pthread_mutex_t exclusionMutuelleMoniteur = PTHREAD_MUTEX_INITIALIZER;
+
 /*---------------------------------------------------------------------*/
 /* codeErr : code retournee par une primitive
  * msgErr  : message d'erreur personnalise
@@ -161,8 +165,9 @@ void *producteur(void *arg)
         printf("\t\tProd %d : Je veux deposer = [T%d] %s (de %d)\n",
                param.rang, leMessage.type, leMessage.info, leMessage.rangProd);
 #endif
-
+        pthread_mutex_lock(&exclusionMutuelleMoniteur);
         deposer(leMessage, param.rang);
+        pthread_mutex_unlock(&exclusionMutuelleMoniteur);
 
         //usleep(rand()%(100 * param.rang + 100));
     }
@@ -184,7 +189,9 @@ void *consommateur(void *arg)
 #ifdef TRACE_SOUHAIT
         printf("\t\tConso %d : Je veux retirer un message \n", param->rang);
 #endif
+        pthread_mutex_lock(&exclusionMutuelleMoniteur);
         retirer(&unMessage, param->rang);
+        pthread_mutex_unlock(&exclusionMutuelleMoniteur);
 
         //usleep(rand()%(100 * param->rang + 100));
     }
@@ -206,6 +213,8 @@ int main(int argc, char *argv[])
     Parametres paramThds[NB_PROD_MAX + NB_CONSO_MAX];
     pthread_t idThdProd[NB_PROD_MAX], idThdConso[NB_CONSO_MAX];
 
+    pthread_mutex_init(&exclusionMutuelleMoniteur, NULL);
+
     if (argc <= 5)
     {
         printf("Usage: %s <Nb Prod <= %d> <Nb Conso <= %d> <Nb Cases <= %d> <Nb Depots <= %d> <Nb retraits <= %d> \n",
@@ -224,10 +233,6 @@ int main(int argc, char *argv[])
     printf("\033[0;32m Paramètres: \033[0m\n - %d producteurs \n - %d consommateurs \n - %d cases dans le buffer \n - %d depots pour chaque producteur \n - %d retraits pour chaque consommateur\n",
            nbProd, nbConso, nbCases, nbDepots, nbRetraits);
 #endif
-
-    // Q1 : ajouter 2 parametres :
-    // -  nombre de depots a faire par un producteur
-    // -  nombre de retraits a faire par un consommateur
 
     initialiserVarPartagees();
 
@@ -274,6 +279,8 @@ int main(int argc, char *argv[])
         printf("Fin thread consommateur de rang %d\n", i);
 #endif
     }
+
+    pthread_mutex_destroy(&exclusionMutuelleMoniteur);
 
 #ifdef TRACE_THD
     printf("\nFin de l'execution du main \n");

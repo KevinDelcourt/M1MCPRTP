@@ -1,5 +1,5 @@
 /*
- * Producteur-consommateur, base sans synchronisation
+ * Producteur-consommateur, variante 2: depots alternés
  * 
  * Compilation : gcc m1_ProdConso_base.c -lpthread [-DOptionDeTrace ...] -o prodconso
  *
@@ -38,8 +38,10 @@ typedef struct
     TypeMessage buffer[NB_CASES_MAX]; // Buffer
     int iDepot;                       // Indice prochain depot
     int iRetrait;                     // Indice prochain retrait
-    int nbVide;
-} RessourceCritique; // A completer eventuellement pour la synchro
+    int nbVide;                       // Nombre de cases vides
+    int typeAttendu;                  // Type de message attendu
+    int nbConsoEnAttente;             // Nombre de consommateurs en attente dans la condition
+} RessourceCritique;                  // A completer eventuellement pour la synchro
 
 // Variables partagees entre tous
 RessourceCritique resCritiques; // Modifications donc conflits possibles
@@ -54,7 +56,7 @@ typedef struct
     int typeMsg; // - type de message a deposer/retirer (si besoin)
 } Parametres;
 
-pthread_cond_t condDepot = PTHREAD_COND_INITIALIZER;
+pthread_cond_t condDepot[2] = {PTHREAD_COND_INITIALIZER};
 pthread_cond_t condRetrait = PTHREAD_COND_INITIALIZER;
 pthread_mutex_t exclusionMutuelleMoniteur = PTHREAD_MUTEX_INITIALIZER;
 
@@ -80,6 +82,8 @@ void initialiserVarPartagees(void)
     resCritiques.iDepot = 0;
     resCritiques.iRetrait = 0;
     resCritiques.nbVide = nbCases;
+    resCritiques.typeAttendu = 0;
+    resCritiques.nbConsoEnAttente = 0;
     for (int i = 0; i < nbCases; i++)
     {
         strcpy(resCritiques.buffer[i].info, "Message vide");
@@ -128,6 +132,7 @@ void depot(const TypeMessage *leMessage)
     resCritiques.buffer[resCritiques.iDepot].rangProd = leMessage->rangProd;
     resCritiques.iDepot = (resCritiques.iDepot + 1) % nbCases;
     resCritiques.nbVide--;
+    resCritiques.typeAttendu = 1 - resCritiques.typeAttendu;
 #ifdef TRACE_BUF
     afficherBuffer();
 #endif
@@ -153,13 +158,14 @@ void retrait(TypeMessage *leMessage)
 void deposer(TypeMessage leMessage, int rangProd)
 {
     int etat;
-    while (resCritiques.nbVide == 0)
+    while (resCritiques.nbVide == 0 || leMessage.type != resCritiques.typeAttendu)
     {
 #ifdef TRACE_SOUHAIT
         printf("\t\t\tProd %d: \033[0;33m En attente\033[0m dans la condition condDepot\n",
                rangProd);
 #endif
-        if (0 != (etat = pthread_cond_wait(&condDepot, &exclusionMutuelleMoniteur)))
+
+        if (0 != (etat = pthread_cond_wait(&condDepot + leMessage.type, &exclusionMutuelleMoniteur)))
             thdErreur(etat, "Wait condition depot", etat);
 #ifdef TRACE_SOUHAIT
         printf("\t\t\tProd %d: \033[0;32m Sort\033[0m de la condition condDepot\n",
@@ -172,8 +178,16 @@ void deposer(TypeMessage leMessage, int rangProd)
     afficherType(leMessage.type);
     printf(" %s (de %d)\n", leMessage.info, leMessage.rangProd);
 
-    if (0 != (etat = pthread_cond_signal(&condRetrait)))
-        thdErreur(etat, "Signal condition retrait", etat);
+    if (resCritiques.nbConsoEnAttente > 0)
+    {
+        if (0 != (etat = pthread_cond_signal(&condRetrait)))
+            thdErreur(etat, "Signal condition retrait", etat);
+    }
+    else if (resCritiques.nbVide > 0)
+    {
+        if (0 != (etat = pthread_cond_signal(&condDepot + resCritiques.typeAttendu)))
+            thdErreur(etat, "Signal condition depot", etat);
+    }
 }
 
 /*--------------------------------------------------
@@ -183,14 +197,17 @@ void deposer(TypeMessage leMessage, int rangProd)
 void retirer(TypeMessage *unMessage, int rangConso)
 {
     int etat;
+
     while (resCritiques.nbVide == nbCases)
     {
 #ifdef TRACE_SOUHAIT
         printf("\t\t\tConso %d: \033[0;33m En attente\033[0m dans la condition condRetrait\n",
                rangConso);
 #endif
+        resCritiques.nbConsoEnAttente++;
         if (0 != (etat = pthread_cond_wait(&condRetrait, &exclusionMutuelleMoniteur)))
             thdErreur(etat, "Wait condition retrait", etat);
+        resCritiques.nbConsoEnAttente--;
 #ifdef TRACE_SOUHAIT
         printf("\t\t\tConso %d: \033[0;32m Sort\033[0m de la condition condRetrait\n",
                rangConso);
@@ -198,12 +215,11 @@ void retirer(TypeMessage *unMessage, int rangConso)
     }
 
     retrait(unMessage);
-
     printf("\t\tConso %d : Message a ete lu = ", rangConso);
     afficherType(unMessage->type);
     printf(" %s (de %d)\n", unMessage->info, unMessage->rangProd);
 
-    if (0 != (etat = pthread_cond_signal(&condDepot)))
+    if (0 != (etat = pthread_cond_signal(&condDepot + resCritiques.typeAttendu)))
         thdErreur(etat, "Signal condition depot", etat);
 }
 
@@ -353,7 +369,7 @@ int main(int argc, char *argv[])
     if (0 != (etat = pthread_cond_destroy(&condRetrait)))
         thdErreur(etat, "Destroy condition retrait", etat);
 
-    if (0 != (etat = pthread_cond_destroy(&condDepot)))
+    if (0 != (etat = pthread_cond_destroy(&condDepot + 0)))
         thdErreur(etat, "Destroy condition depot", etat);
 
 #ifdef TRACE_THD
@@ -362,3 +378,6 @@ int main(int argc, char *argv[])
 
     return 0;
 }
+
+//POUR MON MOI DU FUTUR DANS 3 JOUS
+// LES POINTEURS VERS DE TAB ON DIRAIT QUE CEST LA MERDE DONC PEUTETRE LES ENLEVER

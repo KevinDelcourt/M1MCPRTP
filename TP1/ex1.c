@@ -87,19 +87,35 @@ void initialiserVarPartagees(void)
 }
 
 /*--------------------------------------------------*/
+void afficherType(int type)
+{
+    if (type == 0)
+        printf("\033[0;36m");
+    else
+        printf("\033[0;35m");
+
+    printf("[T%d]\033[0m", type);
+}
+
 void afficherBuffer(void)
 {
     int i;
 
-    printf("[ ");
+    printf("\n[ \n");
     for (i = 0; i < nbCases; i++)
     {
-        printf("[T%d] %s (de %d), ",
-               resCritiques.buffer[i].type,
+        printf("\tCase %d : ", i);
+        afficherType(resCritiques.buffer[i].type);
+        printf(" %s (de %d)",
                resCritiques.buffer[i].info,
                resCritiques.buffer[i].rangProd);
+        if (i == resCritiques.iDepot)
+            printf("\033[0;33m < iDepot \033[0m");
+        if (i == resCritiques.iRetrait)
+            printf("\033[0;33m < iRetrait \033[0m");
+        printf("\n");
     }
-    printf("]\n");
+    printf("]\033[0;33m%d cases vides\033[0m\n\n", resCritiques.nbVide);
 }
 
 /*--------------------------------------------------*/
@@ -109,6 +125,7 @@ void depot(const TypeMessage *leMessage)
     resCritiques.buffer[resCritiques.iDepot].type = leMessage->type;
     resCritiques.buffer[resCritiques.iDepot].rangProd = leMessage->rangProd;
     resCritiques.iDepot = (resCritiques.iDepot + 1) % nbCases;
+    resCritiques.nbVide--;
 #ifdef TRACE_BUF
     afficherBuffer();
 #endif
@@ -121,6 +138,7 @@ void retrait(TypeMessage *leMessage)
     leMessage->type = resCritiques.buffer[resCritiques.iRetrait].type;
     leMessage->rangProd = resCritiques.buffer[resCritiques.iRetrait].rangProd;
     resCritiques.iRetrait = (resCritiques.iRetrait + 1) % nbCases;
+    resCritiques.nbVide++;
 #ifdef TRACE_BUF
     afficherBuffer();
 #endif
@@ -132,13 +150,23 @@ void retrait(TypeMessage *leMessage)
  * */
 void deposer(TypeMessage leMessage, int rangProd)
 {
-    if (resCritiques.nbVide == 0)
+    while (resCritiques.nbVide == 0)
+    {
+#ifdef TRACE_SOUHAIT
+        printf("\t\t\tProd %d: \033[0;33m En attente\033[0m dans la condition condDepot\n",
+               rangProd);
+#endif
         pthread_cond_wait(&condDepot, &exclusionMutuelleMoniteur);
+#ifdef TRACE_SOUHAIT
+        printf("\t\t\tProd %d: \033[0;32m Sort\033[0m de la condition condDepot\n",
+               rangProd);
+#endif
+    }
 
     depot(&leMessage);
-    resCritiques.nbVide--;
-    printf("\tProd %d : Message a ete depose = [T%d] %s (de %d)\n",
-           rangProd, leMessage.type, leMessage.info, leMessage.rangProd);
+    printf("\tProd %d : Message a ete depose = ", rangProd);
+    afficherType(leMessage.type);
+    printf(" %s (de %d)\n", leMessage.info, leMessage.rangProd);
 
     pthread_cond_signal(&condRetrait);
 }
@@ -149,14 +177,25 @@ void deposer(TypeMessage leMessage, int rangProd)
  * */
 void retirer(TypeMessage *unMessage, int rangConso)
 {
-    if (resCritiques.nbVide == nbCases)
-        pthread_cond_wait(&condDepot, &exclusionMutuelleMoniteur);
+    while (resCritiques.nbVide == nbCases)
+    {
+#ifdef TRACE_SOUHAIT
+        printf("\t\t\tConso %d: \033[0;33m En attente\033[0m dans la condition condRetrait\n",
+               rangConso);
+#endif
+        pthread_cond_wait(&condRetrait, &exclusionMutuelleMoniteur);
+#ifdef TRACE_SOUHAIT
+        printf("\t\t\tConso %d: \033[0;32m Sort\033[0m de la condition condRetrait\n",
+               rangConso);
+#endif
+    }
 
     retrait(unMessage);
-    resCritiques.nbVide++;
 
-    printf("\t\tConso %d : Message a ete lu = [T%d] %s (de %d)\n",
-           rangConso, unMessage->type, unMessage->info, unMessage->rangProd);
+    printf("\t\tConso %d : Message a ete lu = ", rangConso);
+    afficherType(unMessage->type);
+    printf(" %s (de %d)\n", unMessage->info, unMessage->rangProd);
+
     pthread_cond_signal(&condDepot);
 }
 
@@ -171,19 +210,19 @@ void *producteur(void *arg)
 
     for (i = 0; i < nbDepots; i++)
     {
-        sprintf(leMessage.info, "%s %d %s %d", "bonjour num ", i, "de prod ", param.rang);
+        sprintf(leMessage.info, "%s %d", "bonjour num ", i);
         leMessage.type = param.typeMsg;
         leMessage.rangProd = param.rang;
 
 #ifdef TRACE_SOUHAIT
-        printf("\t\tProd %d : Je veux deposer = [T%d] %s (de %d)\n",
+        printf("\t\t\tProd %d : Je veux deposer = [T%d] %s (de %d)\n",
                param.rang, leMessage.type, leMessage.info, leMessage.rangProd);
 #endif
         pthread_mutex_lock(&exclusionMutuelleMoniteur);
         deposer(leMessage, param.rang);
         pthread_mutex_unlock(&exclusionMutuelleMoniteur);
 
-        //usleep(rand()%(100 * param.rang + 100));
+        usleep(rand() % (100 * param.rang + 100));
     }
     pthread_exit(NULL);
 }
@@ -201,13 +240,13 @@ void *consommateur(void *arg)
     {
 
 #ifdef TRACE_SOUHAIT
-        printf("\t\tConso %d : Je veux retirer un message \n", param->rang);
+        printf("\t\t\tConso %d : Je veux retirer un message \n", param->rang);
 #endif
         pthread_mutex_lock(&exclusionMutuelleMoniteur);
         retirer(&unMessage, param->rang);
         pthread_mutex_unlock(&exclusionMutuelleMoniteur);
 
-        //usleep(rand()%(100 * param->rang + 100));
+        usleep(rand() % (100 * param->rang + 100));
     }
     pthread_exit(NULL);
 }
@@ -228,6 +267,8 @@ int main(int argc, char *argv[])
     pthread_t idThdProd[NB_PROD_MAX], idThdConso[NB_CONSO_MAX];
 
     pthread_mutex_init(&exclusionMutuelleMoniteur, NULL);
+    pthread_cond_init(&condRetrait, NULL);
+    pthread_cond_init(&condDepot, NULL);
 
     if (argc <= 5)
     {
@@ -295,6 +336,8 @@ int main(int argc, char *argv[])
     }
 
     pthread_mutex_destroy(&exclusionMutuelleMoniteur);
+    pthread_cond_destroy(&condRetrait);
+    pthread_cond_destroy(&condDepot);
 
 #ifdef TRACE_THD
     printf("\nFin de l'execution du main \n");

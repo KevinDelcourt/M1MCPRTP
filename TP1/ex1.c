@@ -234,7 +234,7 @@ void *producteur(void *arg)
         if (0 != (etat = pthread_mutex_unlock(&exclusionMutuelleMoniteur)))
             thdErreur(etat, "Unlock mutex global", etat);
 
-        usleep(rand() % (100 * param.rang + 100));
+        //usleep(rand() % (100 * param.rang + 100));
     }
     pthread_exit(NULL);
 }
@@ -262,7 +262,7 @@ void *consommateur(void *arg)
         if (0 != (etat = pthread_mutex_unlock(&exclusionMutuelleMoniteur)))
             thdErreur(etat, "Unlock mutex global", etat);
 
-        usleep(rand() % (100 * param->rang + 100));
+        //usleep(rand() % (100 * param->rang + 100));
     }
     pthread_exit(NULL);
 }

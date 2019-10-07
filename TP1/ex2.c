@@ -56,7 +56,7 @@ typedef struct
     int typeMsg; // - type de message a deposer/retirer (si besoin)
 } Parametres;
 
-pthread_cond_t condDepot[2] = {PTHREAD_COND_INITIALIZER};
+pthread_cond_t condDepot[2];
 pthread_cond_t condRetrait = PTHREAD_COND_INITIALIZER;
 pthread_mutex_t exclusionMutuelleMoniteur = PTHREAD_MUTEX_INITIALIZER;
 
@@ -165,7 +165,7 @@ void deposer(TypeMessage leMessage, int rangProd)
                rangProd);
 #endif
 
-        if (0 != (etat = pthread_cond_wait(&condDepot + leMessage.type, &exclusionMutuelleMoniteur)))
+        if (0 != (etat = pthread_cond_wait(&condDepot[leMessage.type], &exclusionMutuelleMoniteur)))
             thdErreur(etat, "Wait condition depot", etat);
 #ifdef TRACE_SOUHAIT
         printf("\t\t\tProd %d: \033[0;32m Sort\033[0m de la condition condDepot\n",
@@ -185,7 +185,7 @@ void deposer(TypeMessage leMessage, int rangProd)
     }
     else if (resCritiques.nbVide > 0)
     {
-        if (0 != (etat = pthread_cond_signal(&condDepot + resCritiques.typeAttendu)))
+        if (0 != (etat = pthread_cond_signal(&condDepot[resCritiques.typeAttendu])))
             thdErreur(etat, "Signal condition depot", etat);
     }
 }
@@ -219,7 +219,7 @@ void retirer(TypeMessage *unMessage, int rangConso)
     afficherType(unMessage->type);
     printf(" %s (de %d)\n", unMessage->info, unMessage->rangProd);
 
-    if (0 != (etat = pthread_cond_signal(&condDepot + resCritiques.typeAttendu)))
+    if (0 != (etat = pthread_cond_signal(&condDepot[resCritiques.typeAttendu])))
         thdErreur(etat, "Signal condition depot", etat);
 }
 
@@ -250,7 +250,7 @@ void *producteur(void *arg)
         if (0 != (etat = pthread_mutex_unlock(&exclusionMutuelleMoniteur)))
             thdErreur(etat, "Unlock mutex global", etat);
 
-        usleep(rand() % (100 * param.rang + 100));
+        //usleep(rand() % (100 * param.rang + 100));
     }
     pthread_exit(NULL);
 }
@@ -278,7 +278,7 @@ void *consommateur(void *arg)
         if (0 != (etat = pthread_mutex_unlock(&exclusionMutuelleMoniteur)))
             thdErreur(etat, "Unlock mutex global", etat);
 
-        usleep(rand() % (100 * param->rang + 100));
+        //usleep(rand() % (100 * param->rang + 100));
     }
     pthread_exit(NULL);
 }
@@ -316,6 +316,12 @@ int main(int argc, char *argv[])
     printf("\033[0;32m Paramètres: \033[0m\n - %d producteurs \n - %d consommateurs \n - %d cases dans le buffer \n - %d depots pour chaque producteur \n - %d retraits pour chaque consommateur\n",
            nbProd, nbConso, nbCases, nbDepots, nbRetraits);
 #endif
+
+    if (0 != (etat = pthread_cond_init(&condDepot[0], NULL)))
+        thdErreur(etat, "Init condition depot 0", etat);
+
+    if (0 != (etat = pthread_cond_init(&condDepot[1], NULL)))
+        thdErreur(etat, "Init condition depot 1", etat);
 
     initialiserVarPartagees();
 
@@ -369,7 +375,10 @@ int main(int argc, char *argv[])
     if (0 != (etat = pthread_cond_destroy(&condRetrait)))
         thdErreur(etat, "Destroy condition retrait", etat);
 
-    if (0 != (etat = pthread_cond_destroy(&condDepot + 0)))
+    if (0 != (etat = pthread_cond_destroy(&condDepot[0])))
+        thdErreur(etat, "Destroy condition depot", etat);
+
+    if (0 != (etat = pthread_cond_destroy(&condDepot[1])))
         thdErreur(etat, "Destroy condition depot", etat);
 
 #ifdef TRACE_THD
@@ -378,6 +387,3 @@ int main(int argc, char *argv[])
 
     return 0;
 }
-
-//POUR MON MOI DU FUTUR DANS 3 JOUS
-// LES POINTEURS VERS DE TAB ON DIRAIT QUE CEST LA MERDE DONC PEUTETRE LES ENLEVER

@@ -39,8 +39,10 @@ void demanderAccesVU(int monSens)
     int etat;
     while (sensActuelVoixUnique == oppose(monSens))
     {
+        printf("\tVehicule %x, sens %d: \033[0;31mEn attente\033[0m\t\t(%d v / s = %d)\n", pthread_self(), monSens, nbVehiculesSurVoixUnique, sensActuelVoixUnique);
         if (0 != (etat = pthread_cond_wait(&condVehicules[monSens], &exclusionMutuelleMoniteur)))
             thdErreur(etat, "Wait condition véhicule", NULL);
+        printf("\tVehicule %x, sens %d: \033[0;32mRéveil\033[0m\t\t\t(%d v / s = %d)\n", pthread_self(), monSens, nbVehiculesSurVoixUnique, sensActuelVoixUnique);
     }
     sensActuelVoixUnique = monSens;
     nbVehiculesSurVoixUnique++;
@@ -90,13 +92,24 @@ void *vehicule(void *arg)
     for (i = 0; i < nbPassages; i++)
     {
         roulerVD(monSens, i);
+        if (0 != (etat = pthread_mutex_lock(&exclusionMutuelleMoniteur)))
+            thdErreur(etat, "Lock mutex global", NULL);
         demanderAccesVU(monSens);
-        printf("   Vehicule %lu, de sens %d rentre sur la VU\n", pthread_self(), monSens);
+        if (0 != (etat = pthread_mutex_unlock(&exclusionMutuelleMoniteur)))
+            thdErreur(etat, "Unlock mutex global", NULL);
+
+        printf("   Vehicule %x, de sens %d \033[0;34mrentre\033[0m sur la VU\t\t(%d v / s = %d)\n", pthread_self(), monSens, nbVehiculesSurVoixUnique, sensActuelVoixUnique);
         roulerVU(monSens, i);
+
+        if (0 != (etat = pthread_mutex_lock(&exclusionMutuelleMoniteur)))
+            thdErreur(etat, "Lock mutex global", NULL);
         libererAccesVU();
-        printf("   Vehicule %lu, de sens %d est sorti de la VU\n", pthread_self(), monSens);
+        if (0 != (etat = pthread_mutex_unlock(&exclusionMutuelleMoniteur)))
+            thdErreur(etat, "Unlock mutex global", NULL);
+
+        printf("   Vehicule %x, de sens %d est \033[0;35msorti\033[0m de la VU\t\t(%d v / s = %d)\n", pthread_self(), monSens, nbVehiculesSurVoixUnique, sensActuelVoixUnique);
     }
-    printf("   Vehicule %lu, de sens %d termine\n", pthread_self(), monSens);
+    printf("   Vehicule %x, de sens %d termine\n", pthread_self(), monSens);
     return (NULL);
 }
 

@@ -37,7 +37,7 @@ int oppose(int sens)
 void demanderAccesVU(int monSens)
 {
     int etat;
-    while (sensActuelVoixUnique == oppose(monSens))
+    while (sensActuelVoixUnique != monSens && nbVehiculesSurVoixUnique > 0)
     {
         printf("\tVehicule %x, sens %d: \033[0;31mEn attente\033[0m\t\t(%d v / s = %d)\n", pthread_self(), monSens, nbVehiculesSurVoixUnique, sensActuelVoixUnique);
         if (0 != (etat = pthread_cond_wait(&condVehicules[monSens], &exclusionMutuelleMoniteur)))
@@ -58,7 +58,6 @@ void libererAccesVU(void)
     if (nbVehiculesSurVoixUnique == 0)
     {
         ancienSens = sensActuelVoixUnique;
-        sensActuelVoixUnique = -1;
         if (0 != (etat = pthread_cond_signal(&condVehicules[oppose(ancienSens)])))
             thdErreur(etat, "Signal condition véhicule", NULL);
     }

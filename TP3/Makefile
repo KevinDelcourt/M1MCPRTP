@@ -31,15 +31,6 @@ lecteurRedacteur.o : lecteurRedacteur.cpp LRMonitor.o
 LRMonitor.o : LRMonitor.cpp $(REPMH)$(HM).o $(REPMH)$(HC).o
 	$(CPP) $(CFLAGS) $(CPPFLAGS) LRMonitor.cpp -c -DMACOS
 
-pcv1 : prodConsov1.o
-	$(CPP) $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) prodConsov1.o -o pcv1 PCMonitorv1.o -DMACOS $(REPMH)$(HC).o $(REPMH)$(HM).o $(REPMH)sem.o $(REPMH)$(LI).o $(REPMH)$(ER).o -lpthread
-
-prodConsov1.o : prodConsov1.cpp PCMonitorv1.o
-	$(CPP) $(CFLAGS) $(CPPFLAGS) prodConsov1.cpp -c -DMACOS
-
-PCMonitorv1.o : PCMonitorv1.cpp $(REPMH)$(HM).o $(REPMH)$(HC).o
-	$(CPP) $(CFLAGS) $(CPPFLAGS) PCMonitorv1.cpp -c -DMACOS
-
 $(REPMH)$(HM).o : $(REPMH)$(HM).cpp $(REPMH)$(HC).o $(REPMH)$(ER).o $(REPMH)sem.o $(REPMH)$(LI).o
 	$(CPP) $(CFLAGS) $(REPMH)$(HM).cpp -c  -o $(REPMH)$(HM).o -DMACOS
 
@@ -57,5 +48,5 @@ $(REPMH)$(LI).o : $(REPMH)$(LI).cpp
 
 # Option du make pour "nettoyer" (ici les .o et l'executable)
 clean :
-	$(RM) $(REPMH)*.o *.o pcv1
+	$(RM) $(REPMH)*.o *.o lr LectRed_shared
 

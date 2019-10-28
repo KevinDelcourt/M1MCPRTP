@@ -1,4 +1,4 @@
-/* UPS/IRIT
+/* UPS
    Lecteurs-redacteurs partageant un fichier dans lequel
    les premiers lisent (a plusieurs) et les seconds ecrivent
    (en exclusion mutuelle)
@@ -161,5 +161,6 @@ int main(int argc, char *argv[])
     /* Fermeture du fichier partage */
     close(fd);
 
+    moniteurLR->saveActivities();
     printf("\nFin de l'execution du main \n");
 }

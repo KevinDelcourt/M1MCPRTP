@@ -8,15 +8,26 @@
 
 #include "MONITEURS_HOARE/HoareMonitor.h"
 #include "MONITEURS_HOARE/HoareCondition.h"
+#include <list>
+#include <iterator>
+
+struct Activity
+{
+    pthread_t thread;
+    double time;
+    string action;
+};
 
 class LRMonitor : public HoareMonitor
 {
-
-protected:
+private:
+    double get_clock_time_in_ms();
+    void pushActivity(string action);
+    bool ecritureEnCours;
     int nbLecturesEnCours;
-    int nbEcrituresEnCours;
-
-    HoareCondition *condition;
+    HoareConditionWithPriority *condition;
+    clock_t horloge;
+    list<Activity> activities;
 
 public:
     LRMonitor();
@@ -25,6 +36,8 @@ public:
     void debutEcrire();
     void finLire();
     void finEcrire();
+
+    void saveActivities();
 };
 
 #endif
